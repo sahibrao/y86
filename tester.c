@@ -96,18 +96,19 @@ int is_equal(y86_state_t *s1, y86_state_t *s2){
 	int max = (s1->start_addr+s1->valid_mem > 1024)? 1024: (s1->start_addr+s1->valid_mem);
 	for(int i = 0; i < max; i++){ // checking each byte of memory
 		if(s1->memory[i]!=s2->memory[i]){
+			// printf("for %d, %d and %d\n", i, s1->memory[i], s2->memory[i]);
 			return 0;
 		}
 	}
 
 	// TODO: Check Registers (checking 0-14?)
-	for(int i = 0; i < 16; i++){
+	for(int i = 0; i < 15; i++){
 		if(s1->registers[i]!=s2->registers[i]){
 			return 0;
 		}
 	}
 
-	// TODO: Check PC
+	// Check PC
 	if(s1->pc != s2->pc){
 		return 0;
 	}
@@ -116,9 +117,10 @@ int is_equal(y86_state_t *s1, y86_state_t *s2){
 	// Z flag: 0100 0000, shift 6 bits right? 
 	// S flag: 0000 0100, shift 2 bits right? 
 	// O flag: no need to check 
-	if((((s1->flags >> 6) & 0x01) == 1) && (((s2->flags >> 6) & 0x01) != 1)){
+	if((((s1->flags >> 6) & 0x01) == 1)^(((s2->flags >> 6) & 0x01) == 1)){
 		return 0;
-	} else if((((s1->flags >> 2) & 0x01) == 1) && (((s2->flags >> 2) & 0x01) != 1)){
+	}
+	if((((s1->flags >> 2) & 0x01) == 1)^(((s2->flags >> 2) & 0x01) == 1)){
 		return 0;
 	}
 
