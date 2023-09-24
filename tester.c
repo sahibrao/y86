@@ -87,28 +87,21 @@
  * by the y86.
  */
 int is_equal(y86_state_t *s1, y86_state_t *s2){
-	// TODO: Check Memory from 0 <-> start_addr + valid_mem
+	// TODO: Check Memory in Valid Area (0 <-> start_addr + valid_mem)
 
-	if(s1->valid_mem != s2->valid_mem){
-		return 0;
-	}
-
-	if(s1->start_addr != s2->start_addr){
+	if((s1->valid_mem != s2->valid_mem) || (s1->start_addr != s2->start_addr)){
 		return 0;
 	}
 
 	int max = (s1->start_addr+s1->valid_mem > 1024)? 1024: (s1->start_addr+s1->valid_mem);
-
-	printf("%d\n", max);
-
-	for(int i = 0; i < max; i++){
+	for(int i = 0; i < max; i++){ // checking each byte of memory
 		if(s1->memory[i]!=s2->memory[i]){
 			return 0;
 		}
 	}
 
 	// TODO: Check Registers (checking 0-14?)
-	for(int i = 0; i < 15; i++){
+	for(int i = 0; i < 16; i++){
 		if(s1->registers[i]!=s2->registers[i]){
 			return 0;
 		}
@@ -119,8 +112,13 @@ int is_equal(y86_state_t *s1, y86_state_t *s2){
 		return 0;
 	}
 
-	// TODO: Check Flags
-	if((s1->flags == 0x40 && s2->flags != 0x40)||(s1->flags == 0x04 && s2->flags != 0x04)){
+	// TODO: Check Flags (Need to double check bits)
+	// Z flag: 0100 0000, shift 6 bits right? 
+	// S flag: 0000 0100, shift 2 bits right? 
+	// O flag: no need to check 
+	if((((s1->flags >> 6) & 0x01) == 1) && (((s2->flags >> 6) & 0x01) != 1)){
+		return 0;
+	} else if((((s1->flags >> 2) & 0x01) == 1) && (((s2->flags >> 2) & 0x01) != 1)){
 		return 0;
 	}
 
