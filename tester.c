@@ -11,13 +11,13 @@
  *
  * 1. First, write each of the helper functions. Write them one
  *      at a time and test them with the corresponding test cases.
- *      You can test them using the main program we give you; this
+ *      You can test them using the main program we give you; this <------------ DONE
  *      will be much easier to debug.
  *
  * 2. Design an API that can call to execute a single instruction
  *	from the array of instructions you need to process.  Figure
  *	out what parameters that function should take. Write the
- *	function and have it do nothing; add the right call to it
+ *	function and have it do nothing; add the right call to it <--------------- I think done? 
  *	in your main function. You are now ready to start building
  *	both your simulator and checker.
  *
@@ -90,6 +90,7 @@ int is_equal(y86_state_t *s1, y86_state_t *s2){
 	// TODO: Check Memory in Valid Area (0 <-> start_addr + valid_mem)
 
 	if((s1->valid_mem != s2->valid_mem) || (s1->start_addr != s2->start_addr)){
+		printf("valid memory or start addr is wrong\n");
 		return 0;
 	}
 
@@ -97,6 +98,7 @@ int is_equal(y86_state_t *s1, y86_state_t *s2){
 	for(int i = 0; i < max; i++){ // checking each byte of memory
 		if(s1->memory[i]!=s2->memory[i]){
 			// printf("for %d, %d and %d\n", i, s1->memory[i], s2->memory[i]);
+			printf("memory at %d is different\n", i);
 			return 0;
 		}
 	}
@@ -104,12 +106,14 @@ int is_equal(y86_state_t *s1, y86_state_t *s2){
 	// TODO: Check Registers (checking 0-14?)
 	for(int i = 0; i < 15; i++){
 		if(s1->registers[i]!=s2->registers[i]){
+			printf("register at %d is different", i);
 			return 0;
 		}
 	}
 
 	// Check PC
 	if(s1->pc != s2->pc){
+		printf("pc is different\n");
 		return 0;
 	}
 
@@ -118,9 +122,11 @@ int is_equal(y86_state_t *s1, y86_state_t *s2){
 	// S flag: 0000 0100, shift 2 bits right? 
 	// O flag: no need to check 
 	if((((s1->flags >> 6) & 0x01) == 1)^(((s2->flags >> 6) & 0x01) == 1)){
+		printf("z flag is different\n");
 		return 0;
 	}
 	if((((s1->flags >> 2) & 0x01) == 1)^(((s2->flags >> 2) & 0x01) == 1)){
+		printf("s flag is different\n");
 		return 0;
 	}
 
@@ -134,17 +140,17 @@ int is_equal(y86_state_t *s1, y86_state_t *s2){
  * It returns 1 if a read is successful and 0 if it fails.
  */
 int read_quad(y86_state_t *state, uint64_t address, uint64_t *value) {
+
+	// Boundaries
 	if(address + 8 > (state->start_addr+state->valid_mem)){
 		return 0;
 	}
-
 	if(address < state->start_addr){ 
 		return 0;
 	}
 
-	memcpy(value, state->memory, sizeof(uint64_t));
+	memcpy(value, state->memory + (address - state->start_addr), sizeof(uint64_t));
 
-	// printf("*value equals %1lX\n", *value);
 	return 1;
 }
 
@@ -154,26 +160,87 @@ int read_quad(y86_state_t *state, uint64_t address, uint64_t *value) {
  * It returns 1 if a write is successful and 0 if it fails.
  */
 int write_quad(y86_state_t *state, uint64_t address, uint64_t value) {
+
 	if(address + 8 > (state->start_addr+state->valid_mem)){
 		return 0;
 	}
-
 	if(address < state->start_addr){ 
 		return 0;
 	}
 
-	memcpy(state->memory+address, &value, sizeof(uint64_t));
+	memcpy(state->memory + (address - state->start_addr), &value, sizeof(uint64_t));
 
-	printf("value is %1lX\n", value);
-	printf("mem[0] is %1X\n", state->memory[address]);
-	printf("mem[1] is %1X\n", state->memory[address+1]);
-	printf("mem[2] is %1X\n", state->memory[address+2]);
-	printf("mem[3] is %1X\n", state->memory[address+3]);
-	printf("mem[4] is %1X\n", state->memory[address+4]);
-	printf("mem[5] is %1X\n", state->memory[address+5]);
-	printf("mem[6] is %1X\n", state->memory[address+6]);
-	printf("mem[7] is %1X\n", state->memory[address+7]);
 	return 1;
+}
+
+void create_copy_state(y86_state_t *s1, y86_state_t *s2){
+	s2->flags = s1->flags;
+	s2->pc = s1->pc;
+	s2->start_addr = s1->start_addr;
+	s2->valid_mem = s1->valid_mem;
+	for (int i = 0; i < 16; i++)
+	{
+		s2->registers[i] = s1->registers[i];
+	}
+	for (int i = 0; i < 1024; i++)
+	{
+		s2->memory[i] = s1->memory[i];
+	}
+}
+
+int api(y86_state_t *state, y86_inst_t inst){
+
+	// 1. use inst_to_enum function to turn into enum
+	// 2. check if instruction is valid
+	// 3. if register value needed, check if reg numbers are valid
+	// 4. if need to access memory, compute address
+	// 5. if computed address, check if valid
+	// 6. if nec, read/write memory
+	// 7. if nec, write values into reg
+	// 8. Update PC
+
+	// 1
+	// typedef struct _y86_inst
+    //     uint8_t rA;
+    //     uint8_t rB;
+    //     uint64_t constval;
+    //     char instruction[10];	// nul-terminated
+
+	inst_t instruction = inst_to_enum(inst.instruction);
+
+	// 2 how to check if the instruction is valid
+
+	if(instruction == 0){ // if instuction is nop
+		printf("run nop instruction\n");
+		state->pc = state->pc+1;
+		// do nothing
+	} else if(instruction == 1){
+		printf("halt instruction\n");
+		return 1;
+	} else {
+		return 0;
+	}
+
+
+	return 1;
+}
+
+y86_state_t create_empty_st()
+{
+	y86_state_t state;
+	state.flags = 0;
+	state.pc = 0;
+	state.start_addr = 0;
+	state.valid_mem = 0;
+	for (int i = 0; i < 16; i++)
+	{
+		state.registers[i] = 0;
+	}
+	for (int i = 0; i < 1024; i++)
+	{
+		state.memory[i] = 0;
+	}
+	return state;
 }
 
 /*
@@ -198,7 +265,29 @@ int write_quad(y86_state_t *state, uint64_t address, uint64_t value) {
  *	invalid address, divide by 0, stop execution, the state should
  * 	reflect the last executed instruction
  */
-int y86_check(y86_state_t *state, y86_inst_t *instructions, int n_inst,
-    y86sim_func simfunc) {
-	return -1;
+int y86_check(y86_state_t *state, y86_inst_t *instructions, int n_inst, y86sim_func simfunc) {
+
+	// 1. Make a local copy of the state
+	// 2. Run your simulator
+	// 3. Run test simulator
+	// 4. Use is_equal to determine the answer
+
+	// 1 (Might need to optimize this later, very slow)
+	y86_state_t copystate = create_empty_st();
+	create_copy_state(state, &copystate);	
+
+	// 2 Call all the instructions onto the state
+	for(int i = 0; i < n_inst; i++){
+		api(state, instructions[i]);
+	}
+
+	// 3
+	simfunc(&copystate, instructions, n_inst);	
+
+	// dump_state(state);
+	printf("is_equal is %d\n", is_equal(state, &copystate));
+	// dump_state(&copystate);
+	
+	return !is_equal(state, &copystate);
+	// return 0;
 }
