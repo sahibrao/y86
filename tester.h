@@ -60,12 +60,12 @@ typedef void (*y86sim_func)(y86_state_t *, y86_inst_t *, int n_inst);
 /* Here are the enumerated types for each instruction. */
 typedef enum _inst_t
 {
-        I_NOP,
-        I_HALT,
-        I_RRMOVQ,
-        I_IRMOVQ,
-        I_RMMOVQ,
-        I_MRMOVQ,
+        I_NOP, // done
+        I_HALT, //
+        I_RRMOVQ, //
+        I_IRMOVQ, //
+        I_RMMOVQ, //
+        I_MRMOVQ, //
         I_PUSHQ,
         I_POPQ,
         I_CALL,
@@ -77,13 +77,13 @@ typedef enum _inst_t
         I_JLE,
         I_JG,
         I_JGE,
-        I_ADDQ,
-        I_SUBQ,
-        I_MULQ,
-        I_MODQ,
-        I_DIVQ,
-        I_ANDQ,
-        I_XORQ,
+        I_ADDQ, // 
+        I_SUBQ, //
+        I_MULQ, // 
+        I_MODQ, //
+        I_DIVQ, //
+        I_ANDQ, // 
+        I_XORQ, //
         I_CMOVEQ,
         I_CMOVNE,
         I_CMOVL,

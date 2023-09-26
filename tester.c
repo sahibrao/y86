@@ -188,6 +188,33 @@ void create_copy_state(y86_state_t *s1, y86_state_t *s2){
 	}
 }
 
+void condcode(y86_state_t *state, uint64_t value){
+	if(value==0){ // bit 7 needs to be 1
+		if(((state->flags >> 6) & 0x01) == 1){ 
+				// already one
+			} else {
+				state->flags = state->flags + 0x40;
+				// added a that bit
+			}
+	} else { // bit 7 needs to be 0
+		if(((state->flags >> 6) & 0x01) == 1){ //
+				state->flags = state->flags - 0x40;
+				// took away that bit
+			}
+	}
+	if(value>>63){
+		if(((state->flags >> 2) & 0x01) == 1){
+			// alreadu one
+		} else {
+			state->flags = state->flags + 0x04;
+		}
+	} else {
+		if(((state->flags >> 2) & 0x01) == 1){
+			state->flags = state->flags - 0x04;
+		}
+	}
+}
+
 int api(y86_state_t *state, y86_inst_t inst){
 
 	// 1. use inst_to_enum function to turn into enum
@@ -210,16 +237,258 @@ int api(y86_state_t *state, y86_inst_t inst){
 
 	// 2 how to check if the instruction is valid
 
-	if(instruction == 0){ // if instuction is nop
-		printf("run nop instruction\n");
+	if(instruction == I_NOP){ 
+		// printf("run nop instruction\n");
 		state->pc = state->pc+1;
-		// do nothing
-	} else if(instruction == 1){
+		return 1;
+
+	} else if(instruction == I_HALT){ 
 		printf("halt instruction\n");
+		return 1;
+
+	} else if(instruction == 2){
+		printf("rrmovq instruction\n");
+		uint64_t valP = state->pc+2;
+		
+		uint64_t valA = state->registers[inst.rA];
+
+		uint64_t valE = valA + 0;
+
+		state->registers[inst.rB] = valE;
+
+		state->pc = valP;
+
+		return 1;
+
+	} else if(instruction == 3){
+		printf("irmovq instruction\n");
+		uint64_t valP = state->pc+10;
+
+		uint64_t valC = inst.constval;
+
+		uint64_t valE = valC + 0;
+
+		// need to set R[RB] <- R[RA]
+		state->registers[inst.rB] = valE;
+
+		state->pc = valP;
+
+		return 1;
+
+	} else if(instruction == 4){
+		printf("rmmovq instruction\n");
+		uint64_t valP = state->pc+10;
+		uint64_t valA = state->registers[inst.rA];
+		uint64_t valB = state->registers[inst.rB];
+		uint64_t valC = inst.constval;
+
+		uint64_t valE = valC + valB;
+
+		// need to M8[valE] ← valA
+		write_quad(state, valE, valA);
+
+		state->pc = valP;
+
+		return 1;
+
+	} else if(instruction == 5){
+		printf("mrmovq instruction\n");
+		uint64_t valP = state->pc+10;
+		uint64_t valB = state->registers[inst.rB];
+		uint64_t valC = inst.constval;
+
+		uint64_t valE = valC + valB;
+
+		// need to valM ← M8[valE]
+		uint64_t valM;
+		read_quad(state, valE, &valM);
+
+		state->registers[inst.rA] = valM;
+
+		state->pc = valP;
+
+		return 1;
+	} else if(instruction == I_ADDQ){
+		printf("addq instruction\n");
+		uint64_t valP = state->pc+2;
+		uint64_t valA = state->registers[inst.rA];
+		uint64_t valB = state->registers[inst.rB];
+
+		uint64_t valE = valA + valB;
+
+		// // set condition codes
+		// printf("valA is %1lX and valB is %1lX \n", valA, valB);
+		// printf("valE is %1lX\n", valE);
+		// printf("flag b4 is %1X\n", state->flags);
+		condcode(state, valE);
+
+		// printf("flag after is %1X\n", state->flags);
+
+
+		state->registers[inst.rB] = valE;
+
+		state->pc = valP;
+
+		return 1;
+	} else if(instruction == I_SUBQ){
+		printf("subq instruction\n");
+		uint64_t valP = state->pc+2;
+		uint64_t valA = state->registers[inst.rA];
+		uint64_t valB = state->registers[inst.rB];
+
+		uint64_t valE = valB - valA;
+
+		// // set condition codes
+		// printf("valA is %1lX and valB is %1lX \n", valA, valB);
+		// printf("valE is %1lX\n", valE);
+		// printf("flag b4 is %1X\n", state->flags);
+
+		condcode(state, valE);
+
+		// printf("flag after is %1X\n", state->flags);
+
+		state->registers[inst.rB] = valE;
+
+		state->pc = valP;
+
+		return 1;
+	} else if(instruction == I_MULQ){
+		printf("mulq instruction\n");
+		uint64_t valP = state->pc+2;
+		uint64_t valA = state->registers[inst.rA];
+		uint64_t valB = state->registers[inst.rB];
+
+		uint64_t valE = valB * valA;
+
+		// // set condition codes
+		// printf("valA is %1lX and valB is %1lX \n", valA, valB);
+		// printf("valE is %1lX\n", valE);
+		// printf("flag b4 is %1X\n", state->flags);
+		condcode(state, valE);
+
+
+		// printf("flag after is %1X\n", state->flags);
+
+
+		state->registers[inst.rB] = valE;
+
+		state->pc = valP;
+
+		return 1;
+	} else if(instruction == I_MODQ){
+		printf("modq instruction\n");
+		uint64_t valP = state->pc+2;
+		uint64_t valA = state->registers[inst.rA];
+		uint64_t valB = state->registers[inst.rB];
+
+		uint64_t valE = valB%valA;
+
+		condcode(state, valE);
+
+
+		// printf("flag after is %1X\n", state->flags);
+
+
+		state->registers[inst.rB] = valE;
+
+		state->pc = valP;
+
+		return 1;
+	} else if(instruction == I_DIVQ){
+		printf("divq instruction\n");
+		uint64_t valP = state->pc+2;
+		uint64_t valA = state->registers[inst.rA];
+		uint64_t valB = state->registers[inst.rB];
+
+		uint64_t valE = valB/valA;
+
+		// // set condition codes
+		// printf("valA is %1lX and valB is %1lX \n", valA, valB);
+		// printf("valE is %1lX\n", valE);
+		// printf("flag b4 is %1X\n", state->flags);
+		condcode(state, valE);
+
+
+		// printf("flag after is %1X\n", state->flags);
+
+
+		state->registers[inst.rB] = valE;
+
+		state->pc = valP;
+
+		return 1;
+	} else if(instruction == I_ANDQ){
+		printf("andq instruction\n");
+		uint64_t valP = state->pc+2;
+		uint64_t valA = state->registers[inst.rA];
+		uint64_t valB = state->registers[inst.rB];
+
+		uint64_t valE = valB&valA;
+
+		// // set condition codes
+		// printf("valA is %1lX and valB is %1lX \n", valA, valB);
+		// printf("valE is %1lX\n", valE);
+		// printf("flag b4 is %1X\n", state->flags);
+		condcode(state, valE);
+
+
+		// printf("flag after is %1X\n", state->flags);
+
+
+		state->registers[inst.rB] = valE;
+
+		state->pc = valP;
+
+		return 1;
+	} else if(instruction == I_XORQ){
+		printf("xor instruction\n");
+		uint64_t valP = state->pc+2;
+		uint64_t valA = state->registers[inst.rA];
+		uint64_t valB = state->registers[inst.rB];
+
+		uint64_t valE = valB^valA;
+
+		// // set condition codes
+		// printf("valA is %1lX and valB is %1lX \n", valA, valB);
+		// printf("valE is %1lX\n", valE);
+		// printf("flag b4 is %1X\n", state->flags);
+		condcode(state, valE);
+
+
+
+
+		state->registers[inst.rB] = valE;
+
+		state->pc = valP;
+
+		return 1;
+	} else if(instruction == I_XORQ){
+		printf("xor instruction\n");
+		uint64_t valP = state->pc+2;
+		uint64_t valA = state->registers[inst.rA];
+		uint64_t valB = state->registers[inst.rB];
+
+		uint64_t valE = valB^valA;
+
+		// // set condition codes
+		// printf("valA is %1lX and valB is %1lX \n", valA, valB);
+		// printf("valE is %1lX\n", valE);
+		// printf("flag b4 is %1X\n", state->flags);
+		condcode(state, valE);
+
+
+
+
+		state->registers[inst.rB] = valE;
+
+		state->pc = valP;
+
 		return 1;
 	} else {
 		return 0;
 	}
+
+	
 
 
 	return 1;
@@ -274,6 +543,7 @@ int y86_check(y86_state_t *state, y86_inst_t *instructions, int n_inst, y86sim_f
 
 	// 1 (Might need to optimize this later, very slow)
 	y86_state_t copystate = create_empty_st();
+	// y86_state_t copystate = *state;
 	create_copy_state(state, &copystate);	
 
 	// 2 Call all the instructions onto the state
@@ -283,11 +553,13 @@ int y86_check(y86_state_t *state, y86_inst_t *instructions, int n_inst, y86sim_f
 
 	// 3
 	simfunc(&copystate, instructions, n_inst);	
-
-	// dump_state(state);
-	printf("is_equal is %d\n", is_equal(state, &copystate));
-	// dump_state(&copystate);
 	
 	return !is_equal(state, &copystate);
 	// return 0;
 }
+
+// TODO LIST
+// - need to check for invalid registers and invalid addresses
+// - all of cmovXX and jXX instructions
+// - memory/register problems
+
