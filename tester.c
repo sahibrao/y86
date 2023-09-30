@@ -94,19 +94,26 @@ int is_equal(y86_state_t *s1, y86_state_t *s2){
 		return 0;
 	}
 
-	int max = (s1->start_addr+s1->valid_mem > 1024)? 1024: (s1->start_addr+s1->valid_mem);
-	for(int i = 0; i < max; i++){ // checking each byte of memory
+	// int max = (s1->start_addr+s1->valid_mem > 1024)? 1024: (s1->start_addr+s1->valid_mem);
+	int invalid = 0;
+	for(int i = 0; i < s1->valid_mem; i++){ // checking each byte of memory // max addr? 
 		if(s1->memory[i]!=s2->memory[i]){
 			// printf("for %d, %d and %d\n", i, s1->memory[i], s2->memory[i]);
-			printf("memory at %d is different\n", i);
+			printf("memory at %X is different\n", i);
+
 			return 0;
+			invalid = 1;
 		}
+	}
+	if(invalid){
+		return 0;
 	}
 
 	// TODO: Check Registers (checking 0-14?)
 	for(int i = 0; i < 15; i++){
 		if(s1->registers[i]!=s2->registers[i]){
 			printf("register at %d is different", i);
+			printf("\nmine is %1lX and answe is %1lX\n", s1->registers[i], s2->registers[i]);
 			return 0;
 		}
 	}
@@ -121,11 +128,19 @@ int is_equal(y86_state_t *s1, y86_state_t *s2){
 	// Z flag: 0100 0000, shift 6 bits right? 
 	// S flag: 0000 0100, shift 2 bits right? 
 	// O flag: no need to check 
-	if((((s1->flags >> 6) & 0x01) == 1)^(((s2->flags >> 6) & 0x01) == 1)){
+	// if((((s1->flags >> 6) & 0x01) == 1)^(((s2->flags >> 6) & 0x01) == 1)){
+	// 	printf("z flag is different\n");
+	// 	return 0;
+	// }
+	// if((((s1->flags >> 2) & 0x01) == 1)^(((s2->flags >> 2) & 0x01) == 1)){
+	// 	printf("s flag is different\n");
+	// 	return 0;
+	// }
+	if((((s1->flags >> 6) & 0x01))^(((s2->flags >> 6) & 0x01))){
 		printf("z flag is different\n");
 		return 0;
 	}
-	if((((s1->flags >> 2) & 0x01) == 1)^(((s2->flags >> 2) & 0x01) == 1)){
+	if((((s1->flags >> 2) & 0x01))^(((s2->flags >> 2) & 0x01))){
 		printf("s flag is different\n");
 		return 0;
 	}
@@ -161,14 +176,16 @@ int read_quad(y86_state_t *state, uint64_t address, uint64_t *value) {
  */
 int write_quad(y86_state_t *state, uint64_t address, uint64_t value) {
 
-	if(address + 8 > (state->start_addr+state->valid_mem)){
+	if((address + 8) > (state->start_addr + state->valid_mem)){
 		return 0;
 	}
 	if(address < state->start_addr){ 
 		return 0;
 	}
 
-	memcpy(state->memory + (address - state->start_addr), &value, sizeof(uint64_t));
+	// memcpy(state->memory + (address - state->start_addr), &value, sizeof(uint64_t));
+
+	*(uint64_t *)(state->memory + (address - state->start_addr)) = value;
 
 	return 1;
 }
@@ -215,6 +232,14 @@ void condcode(y86_state_t *state, uint64_t value){
 	}
 }
 
+int condtionCheckEQ(uint8_t flags){
+	return (flags>>6) & 0x01;
+}
+
+int condtionCheckL(uint8_t flags){
+	return (flags>>2) & 0x01;
+}
+
 int api(y86_state_t *state, y86_inst_t inst){
 
 	// 1. use inst_to_enum function to turn into enum
@@ -226,29 +251,27 @@ int api(y86_state_t *state, y86_inst_t inst){
 	// 7. if nec, write values into reg
 	// 8. Update PC
 
-	// 1
-	// typedef struct _y86_inst
-    //     uint8_t rA;
-    //     uint8_t rB;
-    //     uint64_t constval;
-    //     char instruction[10];	// nul-terminated
-
 	inst_t instruction = inst_to_enum(inst.instruction);
 
 	// 2 how to check if the instruction is valid
 
 	if(instruction == I_NOP){ 
-		// printf("run nop instruction\n");
+		// printf("run nop instruction\n"); -- DONE
 		state->pc = state->pc+1;
 		return 1;
 
-	} else if(instruction == I_HALT){ 
-		printf("halt instruction\n");
-		return 1;
+	} else if(instruction == I_HALT || instruction == I_INVALID){ 
+		// printf("halt instruction\n");
+		return 0;
 
 	} else if(instruction == 2){
 		printf("rrmovq instruction\n");
 		uint64_t valP = state->pc+2;
+
+		if((inst.rA > 0xe) || (inst.rB > 0xe)){
+			printf("invalid register");
+			return 0;
+		}
 		
 		uint64_t valA = state->registers[inst.rA];
 
@@ -261,8 +284,13 @@ int api(y86_state_t *state, y86_inst_t inst){
 		return 1;
 
 	} else if(instruction == 3){
-		printf("irmovq instruction\n");
+		// printf("irmovq instruction\n");
 		uint64_t valP = state->pc+10;
+
+		if(inst.rB > 0xe){
+			printf("invalid register");
+			return 0;
+		}
 
 		uint64_t valC = inst.constval;
 
@@ -278,11 +306,21 @@ int api(y86_state_t *state, y86_inst_t inst){
 	} else if(instruction == 4){
 		printf("rmmovq instruction\n");
 		uint64_t valP = state->pc+10;
+		if((inst.rA > 0xe) || (inst.rB > 0xe)){
+			printf("invalid register");
+			return 0;
+		}
 		uint64_t valA = state->registers[inst.rA];
 		uint64_t valB = state->registers[inst.rB];
 		uint64_t valC = inst.constval;
 
 		uint64_t valE = valC + valB;
+
+		// check if address is valid
+		if(valE >= (state->start_addr + state->valid_mem)){
+			printf("invalid address");
+			return 0;
+		}
 
 		// need to M8[valE] ← valA
 		write_quad(state, valE, valA);
@@ -294,10 +332,18 @@ int api(y86_state_t *state, y86_inst_t inst){
 	} else if(instruction == 5){
 		printf("mrmovq instruction\n");
 		uint64_t valP = state->pc+10;
+		if((inst.rA > 0xe) || (inst.rB > 0xe)){
+			printf("invalid register");
+			return 0;
+		}
 		uint64_t valB = state->registers[inst.rB];
 		uint64_t valC = inst.constval;
 
 		uint64_t valE = valC + valB;
+		if(valE >= (state->start_addr + state->valid_mem)){
+			printf("invalid address");
+			return 0;
+		}
 
 		// need to valM ← M8[valE]
 		uint64_t valM;
@@ -311,19 +357,16 @@ int api(y86_state_t *state, y86_inst_t inst){
 	} else if(instruction == I_ADDQ){
 		printf("addq instruction\n");
 		uint64_t valP = state->pc+2;
+		if((inst.rA > 0xe) || (inst.rB > 0xe)){
+			printf("invalid register");
+			return 0;
+		}
 		uint64_t valA = state->registers[inst.rA];
 		uint64_t valB = state->registers[inst.rB];
 
 		uint64_t valE = valA + valB;
 
-		// // set condition codes
-		// printf("valA is %1lX and valB is %1lX \n", valA, valB);
-		// printf("valE is %1lX\n", valE);
-		// printf("flag b4 is %1X\n", state->flags);
 		condcode(state, valE);
-
-		// printf("flag after is %1X\n", state->flags);
-
 
 		state->registers[inst.rB] = valE;
 
@@ -333,19 +376,16 @@ int api(y86_state_t *state, y86_inst_t inst){
 	} else if(instruction == I_SUBQ){
 		printf("subq instruction\n");
 		uint64_t valP = state->pc+2;
+		if((inst.rA > 0xe) || (inst.rB > 0xe)){
+			printf("invalid register");
+			return 0;
+		}
 		uint64_t valA = state->registers[inst.rA];
 		uint64_t valB = state->registers[inst.rB];
 
 		uint64_t valE = valB - valA;
 
-		// // set condition codes
-		// printf("valA is %1lX and valB is %1lX \n", valA, valB);
-		// printf("valE is %1lX\n", valE);
-		// printf("flag b4 is %1X\n", state->flags);
-
 		condcode(state, valE);
-
-		// printf("flag after is %1X\n", state->flags);
 
 		state->registers[inst.rB] = valE;
 
@@ -355,20 +395,16 @@ int api(y86_state_t *state, y86_inst_t inst){
 	} else if(instruction == I_MULQ){
 		printf("mulq instruction\n");
 		uint64_t valP = state->pc+2;
+		if((inst.rA > 0xe) || (inst.rB > 0xe)){
+			printf("invalid register");
+			return 0;
+		}
 		uint64_t valA = state->registers[inst.rA];
 		uint64_t valB = state->registers[inst.rB];
 
 		uint64_t valE = valB * valA;
 
-		// // set condition codes
-		// printf("valA is %1lX and valB is %1lX \n", valA, valB);
-		// printf("valE is %1lX\n", valE);
-		// printf("flag b4 is %1X\n", state->flags);
 		condcode(state, valE);
-
-
-		// printf("flag after is %1X\n", state->flags);
-
 
 		state->registers[inst.rB] = valE;
 
@@ -377,17 +413,21 @@ int api(y86_state_t *state, y86_inst_t inst){
 		return 1;
 	} else if(instruction == I_MODQ){
 		printf("modq instruction\n");
+		if((inst.rA > 0xe) || (inst.rB > 0xe)){
+			printf("invalid register");
+			return 0;
+		}
 		uint64_t valP = state->pc+2;
-		uint64_t valA = state->registers[inst.rA];
-		uint64_t valB = state->registers[inst.rB];
+		int64_t valA = state->registers[inst.rA];
+		int64_t valB = state->registers[inst.rB];
 
-		uint64_t valE = valB%valA;
+		if(valA==0){
+			return 0;
+		}
+
+		uint64_t valE = (uint64_t)(valB%valA); // check first bit
 
 		condcode(state, valE);
-
-
-		// printf("flag after is %1X\n", state->flags);
-
 
 		state->registers[inst.rB] = valE;
 
@@ -396,21 +436,44 @@ int api(y86_state_t *state, y86_inst_t inst){
 		return 1;
 	} else if(instruction == I_DIVQ){
 		printf("divq instruction\n");
+		if((inst.rA > 0xe) || (inst.rB > 0xe)){ // check 0 
+			printf("invalid register");
+			return 0;
+		}
 		uint64_t valP = state->pc+2;
-		uint64_t valA = state->registers[inst.rA];
-		uint64_t valB = state->registers[inst.rB];
+		int64_t valA = state->registers[inst.rA];
+		int64_t valB = state->registers[inst.rB];
+		uint64_t valE;
+		
+		if(valA==0){
+			return 0;
+		} else {
+			valE = (uint64_t)(valB/valA);
+		}
 
-		uint64_t valE = valB/valA;
+		// need to check if they are valid
+		// if(((valA >> 63) & 0x1) && ((valB >> 63) & 0x1)){
+		// 	valA = valA & 0x7fffffffffffffff;
+		// 	valB = valB & 0x7fffffffffffffff;
+		// 	printf("\nvalA is %1lX\n", valA);
+		// 	printf("\nvalB is %1lX\n", valB);
+		// 	valE = valB/valA;
+		// } else if((valA >> 63) & 0x1){
+		// 	valA = valA & 0x7fffffffffffffff;
+		// 	valE = valB/valA;
+		// 	valE = valE | 0x8000000000000000;
+		// } else if((valB >> 63) & 0x1){
+		// 	valA = valA & 0x7fffffffffffffff;
+		// 	valE = valB/valA;
+		// 	valE = valE | 0x8000000000000000;
+		// } else {
+		// 	valE = valB/valA;
+		// }
 
-		// // set condition codes
-		// printf("valA is %1lX and valB is %1lX \n", valA, valB);
-		// printf("valE is %1lX\n", valE);
-		// printf("flag b4 is %1X\n", state->flags);
+		// printf("\nvalE is %1lX\n", valE);
+		// uint64_t valE = valB/valA;
+
 		condcode(state, valE);
-
-
-		// printf("flag after is %1X\n", state->flags);
-
 
 		state->registers[inst.rB] = valE;
 
@@ -420,20 +483,16 @@ int api(y86_state_t *state, y86_inst_t inst){
 	} else if(instruction == I_ANDQ){
 		printf("andq instruction\n");
 		uint64_t valP = state->pc+2;
+		if((inst.rA > 0xe) || (inst.rB > 0xe)){
+			printf("invalid register");
+			return 0;
+		}
 		uint64_t valA = state->registers[inst.rA];
 		uint64_t valB = state->registers[inst.rB];
 
 		uint64_t valE = valB&valA;
 
-		// // set condition codes
-		// printf("valA is %1lX and valB is %1lX \n", valA, valB);
-		// printf("valE is %1lX\n", valE);
-		// printf("flag b4 is %1X\n", state->flags);
 		condcode(state, valE);
-
-
-		// printf("flag after is %1X\n", state->flags);
-
 
 		state->registers[inst.rB] = valE;
 
@@ -443,55 +502,320 @@ int api(y86_state_t *state, y86_inst_t inst){
 	} else if(instruction == I_XORQ){
 		printf("xor instruction\n");
 		uint64_t valP = state->pc+2;
+		if((inst.rA > 0xe) || (inst.rB > 0xe)){
+			printf("invalid register");
+			return 0;
+		}
 		uint64_t valA = state->registers[inst.rA];
 		uint64_t valB = state->registers[inst.rB];
 
 		uint64_t valE = valB^valA;
+		printf("valE is %1lX", valE);
 
-		// // set condition codes
-		// printf("valA is %1lX and valB is %1lX \n", valA, valB);
-		// printf("valE is %1lX\n", valE);
-		// printf("flag b4 is %1X\n", state->flags);
 		condcode(state, valE);
-
-
-
 
 		state->registers[inst.rB] = valE;
 
 		state->pc = valP;
 
 		return 1;
-	} else if(instruction == I_XORQ){
-		printf("xor instruction\n");
+	} else if(instruction == I_CMOVEQ){
+		printf("cmoveq instruction\n");
 		uint64_t valP = state->pc+2;
+		if((inst.rA > 0xe) || (inst.rB > 0xe)){
+			printf("invalid register");
+			return 0;
+		}
 		uint64_t valA = state->registers[inst.rA];
-		uint64_t valB = state->registers[inst.rB];
 
-		uint64_t valE = valB^valA;
+		uint64_t valE = 0+valA;
 
-		// // set condition codes
-		// printf("valA is %1lX and valB is %1lX \n", valA, valB);
-		// printf("valE is %1lX\n", valE);
-		// printf("flag b4 is %1X\n", state->flags);
-		condcode(state, valE);
-
-
-
-
-		state->registers[inst.rB] = valE;
+		// if condition codes
+		if(condtionCheckEQ(state->flags)){
+			state->registers[inst.rB] = valE;
+		}
 
 		state->pc = valP;
+
+		return 1;
+	} else if(instruction == I_CMOVNE){
+		printf("cmoveq instruction\n");
+		uint64_t valP = state->pc+2;
+		if((inst.rA > 0xe) || (inst.rB > 0xe)){
+			printf("invalid register");
+			return 0;
+		}
+		uint64_t valA = state->registers[inst.rA];
+
+		uint64_t valE = 0+valA;
+
+		// if condition codes
+		if(!condtionCheckEQ(state->flags)){
+			state->registers[inst.rB] = valE;
+		}
+
+		state->pc = valP;
+
+		return 1;
+	} else if(instruction == I_CMOVL){
+		printf("cmovl instruction\n");
+		uint64_t valP = state->pc+2;
+		if((inst.rA > 0xe) || (inst.rB > 0xe)){
+			printf("invalid register");
+			return 0;
+		}
+		uint64_t valA = state->registers[inst.rA];
+
+		uint64_t valE = 0+valA;
+
+		// if condition codes
+		if(condtionCheckL(state->flags)){
+			state->registers[inst.rB] = valE;
+		}
+
+		printf("state reg rB is %1lX\n", state->registers[inst.rB]);
+
+		state->pc = valP;
+
+		return 1;
+	} else if(instruction == I_CMOVLE){
+		printf("cmovle instruction\n");
+		uint64_t valP = state->pc+2;
+		if((inst.rA > 0xe) || (inst.rB > 0xe)){
+			printf("invalid register");
+			return 0;
+		}
+		uint64_t valA = state->registers[inst.rA];
+
+		uint64_t valE = 0+valA;
+
+		// if condition codes
+		if(condtionCheckL(state->flags)||condtionCheckEQ(state->flags)){
+			state->registers[inst.rB] = valE;
+		}
+
+		state->pc = valP;
+
+		return 1;
+	} else if(instruction == I_CMOVG){
+		printf("cmovle instruction\n");
+		uint64_t valP = state->pc+2;
+		if((inst.rA > 0xe) || (inst.rB > 0xe)){
+			printf("invalid register");
+			return 0;
+		}
+		uint64_t valA = state->registers[inst.rA];
+
+		uint64_t valE = 0+valA;
+
+		// if condition codes
+		if(!(condtionCheckL(state->flags)||condtionCheckEQ(state->flags))){
+			state->registers[inst.rB] = valE;
+		}
+
+		state->pc = valP;
+
+		return 1;
+	} else if(instruction == I_CMOVGE){
+		printf("cmovle instruction\n");
+		uint64_t valP = state->pc+2;
+		if((inst.rA > 0xe) || (inst.rB > 0xe)){
+			printf("invalid register");
+			return 0;
+		}
+		uint64_t valA = state->registers[inst.rA];
+
+		uint64_t valE = 0+valA;
+
+		// if condition codes
+		if(!(condtionCheckL(state->flags))){
+			state->registers[inst.rB] = valE;
+		}
+
+		state->pc = valP;
+
+		return 1;
+	} else if(instruction == I_PUSHQ){
+		printf("pushq instruction\n");
+		uint64_t valP = state->pc+2;
+		if(inst.rA > 0xe){
+			printf("invalid register");
+			return 0;
+		}
+		uint64_t valA = state->registers[inst.rA];
+		uint64_t valB = state->registers[4]; // %rsp
+
+		uint64_t valE = valB - 8;
+
+
+		// check if address is valid
+		if(valE > state->valid_mem){
+			printf("invalid address");
+			return 0;
+		}
+		
+		// M8[valE] ← valA
+		int x = write_quad(state, valE, valA);
+		if(!x){
+			return 0;
+		}
+	
+
+		// R[%rsp] ← valE
+		// printf("valE is %1lX", valE);
+		state->registers[4] = valE;
+
+		state->pc = valP;
+
+		return 1;
+	} else if(instruction == I_POPQ){
+		printf("popq instruction\n");
+		uint64_t valP = state->pc+2;
+		uint64_t valA = state->registers[4]; // %rsp
+		uint64_t valB = state->registers[4]; // %rsp
+
+		uint64_t valE = valB + 8;
+		if(inst.rA > 0xe){
+			printf("invalid register");
+			return 0;
+		}
+
+		if(valA >= (state->start_addr + state->valid_mem)){
+			printf("invalid address");
+			return 0;
+		}
+
+		uint64_t valM;
+		// valA <- M8[valA] 
+		int x = read_quad(state, valA, &valM);
+		if(!x){
+			return 0;
+		}
+
+		if(valE > state->valid_mem){
+			printf("invalid address");
+			return 0;
+		}
+
+		// R[%rsp] ← valE
+		state->registers[4] = valE;
+		state->registers[inst.rA] = valM;
+
+		state->pc = valP;
+
+		return 1;
+	} else if(instruction == I_J){
+		printf("jmp instruction\n");
+		// uint64_t valP = state->pc+9;
+		uint64_t valC = inst.constval;
+
+		// if(valC >= (state->start_addr + state->valid_mem)){
+		// 	printf("invalid address");
+		// 	return 0;
+		// }
+
+		state->pc = valC;
+
+		return 1;
+	} else if(instruction == I_JEQ){
+		printf("jeq instruction\n");
+		// uint64_t valP = state->pc+9;
+		uint64_t valC = inst.constval;
+
+		// if(valC >= (state->start_addr + state->valid_mem)){
+		// 	printf("invalid address");
+		// 	return 0;
+		// }
+		if(condtionCheckEQ(state->flags)){
+			state->pc = valC;
+		} else {
+			state->pc = state->pc+9;
+		}
+
+		return 1;
+	} else if(instruction == I_JNE){
+		printf("jne instruction\n");
+		// uint64_t valP = state->pc+9;
+		uint64_t valC = inst.constval;
+
+		// if(valC >= (state->start_addr + state->valid_mem)){
+		// 	printf("invalid address");
+		// 	return 0;
+		// }
+		if(!condtionCheckEQ(state->flags)){
+			state->pc = valC;
+		} else {
+			state->pc = state->pc+9;
+		}
+
+		return 1;
+	} else if(instruction == I_JL){
+		printf("jl instruction\n");
+		// uint64_t valP = state->pc+9;
+		uint64_t valC = inst.constval;
+
+		// if(valC >= (state->start_addr + state->valid_mem)){
+		// 	printf("invalid address");
+		// 	return 0;
+		// }
+		if(condtionCheckL(state->flags)){
+			state->pc = valC;
+		} else {
+			state->pc = state->pc+9;
+		}
+
+		return 1;
+	} else if(instruction == I_JLE){
+		printf("jle instruction\n");
+		// uint64_t valP = state->pc+9;
+		uint64_t valC = inst.constval;
+
+		// if(valC >= (state->start_addr + state->valid_mem)){
+		// 	printf("invalid address");
+		// 	return 0;
+		// }
+		if(condtionCheckL(state->flags)||condtionCheckEQ(state->flags)){
+			state->pc = valC;
+		} else {
+			state->pc = state->pc+9;
+		}
+
+		return 1;
+	} else if(instruction == I_JG){
+		printf("jle instruction\n");
+		// uint64_t valP = state->pc+9;
+		uint64_t valC = inst.constval;
+
+		// if(valC >= (state->start_addr + state->valid_mem)){
+		// 	printf("invalid address");
+		// 	return 0;
+		// }
+		if(!(condtionCheckL(state->flags)||condtionCheckEQ(state->flags))){
+			state->pc = valC;
+		} else {
+			state->pc = state->pc+9;
+		}
+
+		return 1;
+	} else if(instruction == I_JGE){
+		printf("jle instruction\n");
+		// uint64_t valP = state->pc+9;
+		uint64_t valC = inst.constval;
+
+		// if(valC >= (state->start_addr + state->valid_mem)){
+		// 	printf("invalid address");
+		// 	return 0;
+		// }
+		if(!(condtionCheckL(state->flags))){
+			state->pc = valC;
+		} else {
+			state->pc = state->pc+9;
+		}
 
 		return 1;
 	} else {
 		return 0;
 	}
-
-	
-
-
-	return 1;
 }
 
 y86_state_t create_empty_st()
@@ -548,18 +872,25 @@ int y86_check(y86_state_t *state, y86_inst_t *instructions, int n_inst, y86sim_f
 
 	// 2 Call all the instructions onto the state
 	for(int i = 0; i < n_inst; i++){
-		api(state, instructions[i]);
+		int x = api(state, instructions[i]);
+		if(!x){
+			break;
+		}
+		// if(api(state, instructions[i])){
+		// 	break;
+		// }
 	}
 
 	// 3
 	simfunc(&copystate, instructions, n_inst);	
-	
+	// dump_state(state);
+	// dump_state(&copystate);
 	return !is_equal(state, &copystate);
 	// return 0;
 }
 
 // TODO LIST
 // - need to check for invalid registers and invalid addresses
-// - all of cmovXX and jXX instructions
-// - memory/register problems
+// - all of push/pull/call/ret and jXX instructions
+// - div/mod check for bits
 
