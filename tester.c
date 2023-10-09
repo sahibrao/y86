@@ -2,79 +2,6 @@
 #include <stdlib.h>
 #include "tester.h"
 
-/*
- * How to approach this assignment.
- *
- * You need not maintain the O flag! As pointed out in class, there 
- * is no y86 instruction whose behaviour can change based on its
- * value.
- *
- * 1. First, write each of the helper functions. Write them one
- *      at a time and test them with the corresponding test cases.
- *      You can test them using the main program we give you; this <------------ DONE
- *      will be much easier to debug.
- *
- * 2. Design an API that can call to execute a single instruction
- *	from the array of instructions you need to process.  Figure
- *	out what parameters that function should take. Write the
- *	function and have it do nothing; add the right call to it <--------------- I think done? 
- *	in your main function. You are now ready to start building
- *	both your simulator and checker.
- *
- * 3. Write the y86_check function. Use the answer to question  Lab3-Ind.8
- *	to help you do this.
- *
- * 4. Start building out your simulator (the function you designed in #2).
- *	Start by just having it return success.
- *	You should find that even this simple simulator passes the first test.
- *	(Once again, use the main program we give you.)
- *
- * 5. Now, start building it out for real!
- * 	Write code to transform the string representation of an instruction
- *	to an enum (hint: look at the utility functions we provide for you;
- *	they are documented in tester.h).
- *
- * 6. Now, start adding instructions incrementally.
- *	Follow the structure described on the main page for this assignment.
- *	The tests we give you in main.c also follow this structure.  Test
- * 	each category before moving on to the next.  Think about error cases!
- *	Every time you think of a kind of error you need to check for, encapsulate
- *	that check in a small function that you can easily test; then use it
- *	every time you need to make that test.
- *	Be careful: on an error, you must not have changed any state.
- *
- *	A note from Margo: I have been programming a long time. I redid this
- *	entire assignment after having already done it once earlier in the
- *	week; I had at least one bug to fix after every new thing I added.
- *	However, by testing each function and each instruction or each
- *	instruction class, the bugs were relatively easy to fix. Had I
- *	tried to do everything at the end, it would have taken two to
- *	three times longer (at least). I also used the main.c we give you
- *	to test entire sets before ever running the autograder.
- *	I also found that by building up lots of error functions, by the
- *	time I got to the last several classes, it was easy to assemble
- *	implementations for them.
- *
- *	While we provided a bunch of test cases, you are free to implement
- *	your own -- just copy a test case and edit it to do what you want!
- *	When you do run the autograder, if you fail a test, you will get
- *	output describing the test case. You can cut and paste the instructions
- *	and state directly into appropriate files in a new test case directory.
- *
- *	If you want to create your own tests, read the file tester.md.
- *
- * 7. When possible, identify helper functions you can write, e.g.,
- *	- Is there error checking that might be used by many instructions?
- *	- Can you think of functionality that might be shared across all
- *	  ALU ops?
- *	- What do the conditional jump and conditional move instructions
- *	  have in common?
- *
- * 8. Finally, use the main program we give you to debug -- you can call functions
- *	from inside gdb and you will find this extraordinarily helpful, e.g.,
- *	call (void)dump_state(state)
- */
-
 
 /* 
  * is_equal compares two y86 machine states for equivalence.
@@ -124,18 +51,6 @@ int is_equal(y86_state_t *s1, y86_state_t *s2){
 		return 0;
 	}
 
-	// TODO: Check Flags (Need to double check bits)
-	// Z flag: 0100 0000, shift 6 bits right? 
-	// S flag: 0000 0100, shift 2 bits right? 
-	// O flag: no need to check 
-	// if((((s1->flags >> 6) & 0x01) == 1)^(((s2->flags >> 6) & 0x01) == 1)){
-	// 	printf("z flag is different\n");
-	// 	return 0;
-	// }
-	// if((((s1->flags >> 2) & 0x01) == 1)^(((s2->flags >> 2) & 0x01) == 1)){
-	// 	printf("s flag is different\n");
-	// 	return 0;
-	// }
 	if((((s1->flags >> 6) & 0x01))^(((s2->flags >> 6) & 0x01))){
 		printf("z flag is different\n");
 		return 0;
@@ -316,15 +231,12 @@ int api(y86_state_t *state, y86_inst_t inst){
 
 		uint64_t valE = valC + valB;
 
-		// check if address is valid
-		if(valE >= (state->start_addr + state->valid_mem)){
-			printf("invalid address");
-			return 0;
-		}
 
 		// need to M8[valE] ← valA
-		write_quad(state, valE, valA);
-
+		int x = write_quad(state, valE, valA);
+		if (!x) {
+			return 0;
+		}
 		state->pc = valP;
 
 		return 1;
@@ -347,7 +259,10 @@ int api(y86_state_t *state, y86_inst_t inst){
 
 		// need to valM ← M8[valE]
 		uint64_t valM;
-		read_quad(state, valE, &valM);
+		int x = read_quad(state, valE, &valM);
+		if (!x) { // I think this fixed it?
+			return 0;
+		}
 
 		state->registers[inst.rA] = valM;
 
@@ -450,28 +365,6 @@ int api(y86_state_t *state, y86_inst_t inst){
 		} else {
 			valE = (uint64_t)(valB/valA);
 		}
-
-		// need to check if they are valid
-		// if(((valA >> 63) & 0x1) && ((valB >> 63) & 0x1)){
-		// 	valA = valA & 0x7fffffffffffffff;
-		// 	valB = valB & 0x7fffffffffffffff;
-		// 	printf("\nvalA is %1lX\n", valA);
-		// 	printf("\nvalB is %1lX\n", valB);
-		// 	valE = valB/valA;
-		// } else if((valA >> 63) & 0x1){
-		// 	valA = valA & 0x7fffffffffffffff;
-		// 	valE = valB/valA;
-		// 	valE = valE | 0x8000000000000000;
-		// } else if((valB >> 63) & 0x1){
-		// 	valA = valA & 0x7fffffffffffffff;
-		// 	valE = valB/valA;
-		// 	valE = valE | 0x8000000000000000;
-		// } else {
-		// 	valE = valB/valA;
-		// }
-
-		// printf("\nvalE is %1lX\n", valE);
-		// uint64_t valE = valB/valA;
 
 		condcode(state, valE);
 
@@ -637,6 +530,9 @@ int api(y86_state_t *state, y86_inst_t inst){
 		return 1;
 	} else if(instruction == I_PUSHQ){
 		printf("pushq instruction\n");
+
+		
+		
 		uint64_t valP = state->pc+2;
 		if(inst.rA > 0xe){
 			printf("invalid register");
@@ -647,22 +543,16 @@ int api(y86_state_t *state, y86_inst_t inst){
 
 		uint64_t valE = valB - 8;
 
-
-		// check if address is valid
-		if(valE > state->valid_mem){
+		if(valE >= (state->start_addr + state->valid_mem)){
 			printf("invalid address");
 			return 0;
 		}
-		
-		// M8[valE] ← valA
+	
 		int x = write_quad(state, valE, valA);
 		if(!x){
 			return 0;
 		}
-	
 
-		// R[%rsp] ← valE
-		// printf("valE is %1lX", valE);
 		state->registers[4] = valE;
 
 		state->pc = valP;
@@ -686,18 +576,16 @@ int api(y86_state_t *state, y86_inst_t inst){
 		}
 
 		uint64_t valM;
-		// valA <- M8[valA] 
 		int x = read_quad(state, valA, &valM);
 		if(!x){
 			return 0;
 		}
 
-		if(valE > state->valid_mem){
+		if(valE >= (state->start_addr + state->valid_mem)){
 			printf("invalid address");
 			return 0;
 		}
 
-		// R[%rsp] ← valE
 		state->registers[4] = valE;
 		state->registers[inst.rA] = valM;
 
@@ -706,26 +594,15 @@ int api(y86_state_t *state, y86_inst_t inst){
 		return 1;
 	} else if(instruction == I_J){
 		printf("jmp instruction\n");
-		// uint64_t valP = state->pc+9;
 		uint64_t valC = inst.constval;
-
-		// if(valC >= (state->start_addr + state->valid_mem)){
-		// 	printf("invalid address");
-		// 	return 0;
-		// }
 
 		state->pc = valC;
 
 		return 1;
 	} else if(instruction == I_JEQ){
 		printf("jeq instruction\n");
-		// uint64_t valP = state->pc+9;
 		uint64_t valC = inst.constval;
 
-		// if(valC >= (state->start_addr + state->valid_mem)){
-		// 	printf("invalid address");
-		// 	return 0;
-		// }
 		if(condtionCheckEQ(state->flags)){
 			state->pc = valC;
 		} else {
@@ -735,13 +612,8 @@ int api(y86_state_t *state, y86_inst_t inst){
 		return 1;
 	} else if(instruction == I_JNE){
 		printf("jne instruction\n");
-		// uint64_t valP = state->pc+9;
 		uint64_t valC = inst.constval;
 
-		// if(valC >= (state->start_addr + state->valid_mem)){
-		// 	printf("invalid address");
-		// 	return 0;
-		// }
 		if(!condtionCheckEQ(state->flags)){
 			state->pc = valC;
 		} else {
@@ -751,13 +623,8 @@ int api(y86_state_t *state, y86_inst_t inst){
 		return 1;
 	} else if(instruction == I_JL){
 		printf("jl instruction\n");
-		// uint64_t valP = state->pc+9;
 		uint64_t valC = inst.constval;
 
-		// if(valC >= (state->start_addr + state->valid_mem)){
-		// 	printf("invalid address");
-		// 	return 0;
-		// }
 		if(condtionCheckL(state->flags)){
 			state->pc = valC;
 		} else {
@@ -770,10 +637,6 @@ int api(y86_state_t *state, y86_inst_t inst){
 		// uint64_t valP = state->pc+9;
 		uint64_t valC = inst.constval;
 
-		// if(valC >= (state->start_addr + state->valid_mem)){
-		// 	printf("invalid address");
-		// 	return 0;
-		// }
 		if(condtionCheckL(state->flags)||condtionCheckEQ(state->flags)){
 			state->pc = valC;
 		} else {
@@ -786,10 +649,6 @@ int api(y86_state_t *state, y86_inst_t inst){
 		// uint64_t valP = state->pc+9;
 		uint64_t valC = inst.constval;
 
-		// if(valC >= (state->start_addr + state->valid_mem)){
-		// 	printf("invalid address");
-		// 	return 0;
-		// }
 		if(!(condtionCheckL(state->flags)||condtionCheckEQ(state->flags))){
 			state->pc = valC;
 		} else {
@@ -799,19 +658,41 @@ int api(y86_state_t *state, y86_inst_t inst){
 		return 1;
 	} else if(instruction == I_JGE){
 		printf("jle instruction\n");
-		// uint64_t valP = state->pc+9;
 		uint64_t valC = inst.constval;
 
-		// if(valC >= (state->start_addr + state->valid_mem)){
-		// 	printf("invalid address");
-		// 	return 0;
-		// }
+	
 		if(!(condtionCheckL(state->flags))){
 			state->pc = valC;
 		} else {
 			state->pc = state->pc+9;
 		}
+		return 1;
 
+	} else if (instruction == I_RET) {
+		printf("ret istruction\n");
+		uint64_t valM;
+		uint64_t stackPtr = state->registers[4]; 
+		int x = read_quad(state, stackPtr, &valM);
+		if (!x) {
+			return 0;
+		}
+		state->registers[4] += 8;
+		state->pc = valM;
+		return 1;
+
+	} else if (instruction == I_CALL) {
+		printf("call istruction\n");
+		uint64_t valC = inst.constval;
+		if (valC >= state->start_addr + state->valid_mem) {
+			return 0;
+		}
+		state->registers[4] -= 8;
+		
+		int x = write_quad(state, state->registers[4], state->pc + 9);
+		if (!x) {
+			return 0;
+		}
+		state->pc = valC;
 		return 1;
 	} else {
 		return 0;
@@ -860,15 +741,10 @@ y86_state_t create_empty_st()
  */
 int y86_check(y86_state_t *state, y86_inst_t *instructions, int n_inst, y86sim_func simfunc) {
 
-	// 1. Make a local copy of the state
-	// 2. Run your simulator
-	// 3. Run test simulator
-	// 4. Use is_equal to determine the answer
+
 
 	// 1 (Might need to optimize this later, very slow)
-	y86_state_t copystate = create_empty_st();
-	// y86_state_t copystate = *state;
-	create_copy_state(state, &copystate);	
+	y86_state_t copystate = *state;
 
 	// 2 Call all the instructions onto the state
 	for(int i = 0; i < n_inst; i++){
@@ -876,21 +752,10 @@ int y86_check(y86_state_t *state, y86_inst_t *instructions, int n_inst, y86sim_f
 		if(!x){
 			break;
 		}
-		// if(api(state, instructions[i])){
-		// 	break;
-		// }
 	}
 
-	// 3
-	simfunc(&copystate, instructions, n_inst);	
-	// dump_state(state);
-	// dump_state(&copystate);
+	// simfunc(&copystate, instructions, n_inst);	
+
 	return !is_equal(state, &copystate);
-	// return 0;
+
 }
-
-// TODO LIST
-// - need to check for invalid registers and invalid addresses
-// - all of push/pull/call/ret and jXX instructions
-// - div/mod check for bits
-

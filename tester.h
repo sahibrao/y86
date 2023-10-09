@@ -3,16 +3,6 @@
 #include <stdint.h>
 #include <string.h>
 
-/*
- * Definitions for y86 test harness assignment.
- *
- * Students write the function y86_check as defined below.
- *
- * state: a pointer to the starting machine state
- * instructions: an array of 1 or more y86 instructions
- * n_inst: the number of instructions in the array
- * simfunc: the simulator being tested
- */
 
 /* y86 Condition codes. */
 #define FLAG_O 0x20
@@ -20,8 +10,8 @@
 #define FLAG_S 0x04
 
 /*
- * Our simulator supports no more than 1024 bytes of memory, but unlike
- * in a real processor, we are not required to store our programs in
+ * The simulator supports no more than 1024 bytes of memory, but unlike
+ * in a real processor, not required to store our programs in
  * memory. For the most part, we'll use memory here only to hold data.
  * start_addr tells you the y86 address of the first byte of the data
  *	stored in the memory field.
@@ -53,19 +43,18 @@ typedef struct _y86_inst
  * that implements a y86 simulator. The type of that function is
  * defined below (and it's called a y86sim_func).
  */
-typedef void (*y86sim_func)(y86_state_t *, y86_inst_t *, int n_inst);
+ typedef void (*y86sim_func)(y86_state_t *, y86_inst_t *, int n_inst);
 
 /****** ENUMERATED TYPES FOR INSTRUCTIONS *****/
 
-/* Here are the enumerated types for each instruction. */
 typedef enum _inst_t
 {
-        I_NOP, // done
-        I_HALT, //
-        I_RRMOVQ, //
-        I_IRMOVQ, //
-        I_RMMOVQ, //
-        I_MRMOVQ, //
+        I_NOP, 
+        I_HALT, 
+        I_RRMOVQ, 
+        I_IRMOVQ,
+        I_RMMOVQ, 
+        I_MRMOVQ, 
         I_PUSHQ,
         I_POPQ,
         I_CALL,
@@ -77,13 +66,13 @@ typedef enum _inst_t
         I_JLE,
         I_JG,
         I_JGE,
-        I_ADDQ, // 
-        I_SUBQ, //
-        I_MULQ, // 
-        I_MODQ, //
-        I_DIVQ, //
-        I_ANDQ, // 
-        I_XORQ, //
+        I_ADDQ, 
+        I_SUBQ, 
+        I_MULQ, 
+        I_MODQ, 
+        I_DIVQ, 
+        I_ANDQ, 
+        I_XORQ, 
         I_CMOVEQ,
         I_CMOVNE,
         I_CMOVL,
@@ -93,10 +82,10 @@ typedef enum _inst_t
         I_INVALID
 } inst_t;
 
-/* Here is the prototype for the function that you will write. */
+
 inst_t inst_to_enum(const char *str);
 
-/****** HELPER FUNCTIONS WE PROVIDE TO YOU *****/
+/****** HELPER FUNCTIONS U *****/
 /* 
  * Test Simulators that you can use for testing your checker.
  */
@@ -112,7 +101,6 @@ int load_test_case(const char *name, y86_state_t *state, y86_inst_t **insts, int
 /* Maps a string to an enum for each y86 instruction. */
 inst_t inst_to_enum(const char *str);
 
-/****** FUNCTIONS YOU MUST WRITE (in tester.c) *****/
 /* 
  * Given two y86 machine states, return 1 if they are the same and 0 otherwise.
  */
